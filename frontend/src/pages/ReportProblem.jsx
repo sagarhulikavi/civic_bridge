@@ -300,7 +300,8 @@ export const ReportProblem = () => {
   const handleImageChange = (e) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (!file.type.startsWith('image/')) {
+      const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+      if (!allowed.includes(file.type)) {
         setErrorMessage('Please select a valid image file (JPG, PNG, or WebP).');
         return;
       }
@@ -372,7 +373,7 @@ export const ReportProblem = () => {
       });
 
       if (response.success && response.data?.problem) {
-        setSubmitStep('Generating University & Industry matches...');
+        setSubmitStep('Submitted! Awaiting admin verification...');
         setTimeout(() => {
           navigate(`/problems/${response.data.problem.id}`);
         }, 600);

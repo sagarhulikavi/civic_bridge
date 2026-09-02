@@ -64,7 +64,17 @@ export default function App() {
               <Routes>
                 {/* Public Core Routes */}
                 <Route path="/" element={<Home />} />
-                <Route path="/report" element={<ReportProblem />} />
+                {/* Alias that forwards to the protected report route — prevents
+                    accessing the report form via a non-protected /report-problem path. */}
+                <Route path="/report-problem" element={<Navigate to="/report" replace />} />
+                <Route
+                  path="/report"
+                  element={
+                    <ProtectedRoute allowedRoles={['CITIZEN']}>
+                      <ReportProblem />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route path="/problems/:id" element={<ProblemDetails />} />
                 <Route path="/explore" element={<ExploreProblems />} />
                 <Route path="/collaborations/:id" element={<CollaborationWorkspace />} />

@@ -397,3 +397,51 @@ If you are an AI assistant taking over this codebase, **strictly adhere to the f
 3. **Multilingual Consistency:** Ensure any new UI text includes translation keys in `en.json`, `hi.json`, and `kh.json`.
 4. **Leaflet & OpenStreetMap:** Do not replace Leaflet with proprietary Google Maps keys. Nominatim and OpenStreetMap tile layers are free and open-source.
 5. **Role-Based Access Control:** Use `authenticate` and `requireRole(...)` on all protected endpoints.
+
+---
+
+## 13. Workflow Redesign — Admin-Verified Problem-Solving Pipeline (Implementation Report)
+
+**Goal:** Convert the problem-reporting flow into a controlled, AI-assisted, Admin-verified, University-matched, Industry-supported civic problem-solving workflow with backend-enforced visibility and role-based access.
+
+### Root causes fixed
+1. **Public API leaked unreviewed problems** — `GET /api/problems` returned all rows regardless of status.
+2. **Status updates were unprivileged & unvalidated** — `PATCH /:id/status` used only `authenticate` (any logged-in role) with no transition validation; a CITIZEN could set `APPROVED`/`RESOLVED` and bypass the workflow.
+3. **No guarded admin approve/reject** — the admin override set `verificationStatus:'APPROVED'` unconditionally.
+4. **Matching ran at submit-time** to every verified org, not after approval.
+5. **University/Industry portals saw all problems** (no approval or match filter).
+6. **No duplicate-submission protection.**
+
+### State machine (`backend/src/services/problemStatus.js`)
+Unified `Problem.status` as the single source of truth; `aiStatus`/`verificationStatus` synced in lockstep (no new DB columns).
+Canonical arrows:
+`SUBMITTED → AI_ANALYZING → PENDING_ADMIN_REVIEW → APPROVED → UNIVERSITY_MATCHING → UNIVERSITY_INTERESTED → IDEA_SUBMITTED → INDUSTRY_REVIEW → ACCEPTED → PROTOTYPE_DEVELOPMENT → IMPLEMENTED → RESOLVED`, with `REJECTED`, `DECLINED`, `NEEDS_MORE_INFORMATION`, `AI_FAILED`, `CANCELLED` handled. Invalid arrows return `409 INVALID_STATUS_TRANSITION`.
+
+### Visibility (`backend/src/services/visibility.js`)
+`buildProblemWhere(user, filters)` + `canViewProblem(problem, user)` + `sanitizeProblemForViewer` enforce per-role visibility in Prisma queries (not frontend):
+- Public: `APPROVED` onward.
+- Citizen: public + own submissions (any state).
+- University/Industry: approved-pipeline problems matched to their org only.
+- `sanitizeProblemForViewer` strips email/phone/exact coords from non-owners.
+
+### Routes
+- `problem.routes.js` — submit (image mandatory + magic-byte integrity check, defer matching, route to `PENDING_ADMIN_REVIEW`/`AI_FAILED`, 60s dedupe); list/detail now visibility-gated; `PATCH /:id/status` is `requireRole('ADMIN')` + transition validation + on APPROVE creates matches and transitions to `UNIVERSITY_MATCHING`.
+- `workflow.routes.js` (new) — role-guarded actions: University interest/idea/prototype; Industry review/support/implement/resolve.
+- `match.routes.js` — match-status edits require org ownership + valid enum.
+- `admin.routes.js` — override routes status through the state machine; pending stat counts `PENDING_ADMIN_REVIEW`/`AI_FAILED`/`NEEDS_MORE_INFORMATION`.
+
+### Frontend
+- `StatusTimeline.jsx` — new 7-stage canonical timeline + `STATUS_LABELS`.
+- `ReportProblem.jsx` — restricts image to JPG/PNG/WebP, updated success messaging.
+- `AdminDashboard.jsx` — Pending Verification gate (Approve / Reject / More Info) using the guarded endpoint.
+- `CitizenDashboard.jsx` — accurate pending/pipeline counts + friendly status labels.
+- `University/IndustryDashboard.jsx` — status chips + context-aware workflow action buttons.
+- `ProblemDetails.jsx` — admin override routes status via the guarded PATCH.
+
+### Test result (against live backend, `__flow.mjs`)
+`PASS: 35 / FAIL: 0` across login, submit (valid/no image/invalid image), dedupe, public-visibility before/after approval, citizen/university approve blocked (403), invalid transition rejected (409), admin approve → `UNIVERSITY_MATCHING` + matches, full University→Industry→Resolved pipeline. Frontend `npm run build` succeeds (only the pre-existing >500 kB chunk warning).
+
+### Remaining / not covered
+- `ai-service` vision/ASR/NLP are reused as-is; submit-time call ordering changed only in the backend. External real CV-model quality was not validated (no live model).
+- Sector-specific "reach out to unmatched orgs" and parallel multi-org matching beyond a single sequential pipeline are not implemented.
+- No new i18n keys were added for the new status labels in `en/hi/kh.json` (labels render in English via `STATUS_LABELS`).

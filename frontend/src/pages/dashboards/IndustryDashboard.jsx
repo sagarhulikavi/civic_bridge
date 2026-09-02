@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Building2, Award, ArrowRight, Wrench, DollarSign, CheckCircle2, Factory } from 'lucide-react';
+import { Building2, Award, ArrowRight, Wrench, CheckCircle2, Factory, ThumbsUp, ThumbsDown, Hammer, Flag } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { STATUS_LABELS } from '../../components/common/StatusTimeline';
 import api from '../../services/api';
 
 export const IndustryDashboard = () => {
   const { user } = useAuth();
   const [matchedProblems, setMatchedProblems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [actingId, setActingId] = useState(null);
+  const [actionError, setActionError] = useState(null);
 
   useEffect(() => {
     fetchProblems();
@@ -24,6 +27,21 @@ export const IndustryDashboard = () => {
       console.error('Failed to load industry problems:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const runAction = async (prob, action, body) => {
+    try {
+      setActingId(prob.id);
+      setActionError(null);
+      const res = await api.post(`/workflow/${prob.id}/${action}`, body);
+      if (res.success) {
+        await fetchProblems();
+      }
+    } catch (err) {
+      setActionError(err.message || 'Action failed. Please try again.');
+    } finally {
+      setActingId(null);
     }
   };
 
@@ -109,23 +127,52 @@ export const IndustryDashboard = () => {
                     <div className="flex items-center space-x-3 text-[11px] text-dark-500 pt-1">
                       <span>Location: <b>{prob.location?.district}, Jharkhand</b></span>
                       <span>•</span>
-                      <span className="text-amber-700 font-semibold">Matched for Bitumen / Pavement Repair</span>
+                      <span className="text-amber-700 font-semibold">Matched for Equipment / CSR</span>
                     </div>
+                    <span className="inline-block mt-2 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                      {STATUS_LABELS[prob.status] || prob.status}
+                    </span>
                   </div>
                 </div>
 
-                <div className="flex items-center space-x-2 self-end md:self-center">
-                  <Link
-                    to={`/problems/${prob.id}`}
-                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1"
-                  >
-                    <span>Deploy & Fund Solution</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
+                    <div className="flex items-center space-x-2 self-end md:self-center">
+                  {prob.status === 'INDUSTRY_REVIEW' && (
+                    <>
+                      <button onClick={() => runAction(prob, 'review', { decision: 'ACCEPT' })} disabled={actingId === prob.id} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1 disabled:opacity-50">
+                        <ThumbsUp className="w-3.5 h-3.5" /><span>Accept</span>
+                      </button>
+                      <button onClick={() => runAction(prob, 'review', { decision: 'DECLINE' })} disabled={actingId === prob.id} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1 disabled:opacity-50">
+                        <ThumbsDown className="w-3.5 h-3.5" /><span>Decline</span>
+                      </button>
+                    </>
+                  )}
+                  {prob.status === 'ACCEPTED' && (
+                    <button onClick={() => runAction(prob, 'support')} disabled={actingId === prob.id} className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1 disabled:opacity-50">
+                      <Wrench className="w-3.5 h-3.5" /><span>Support Development</span>
+                    </button>
+                  )}
+                  {prob.status === 'PROTOTYPE_DEVELOPMENT' && (
+                    <button onClick={() => runAction(prob, 'implement')} disabled={actingId === prob.id} className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1 disabled:opacity-50">
+                      <Hammer className="w-3.5 h-3.5" /><span>Mark Implemented</span>
+                    </button>
+                  )}
+                  {prob.status === 'IMPLEMENTED' && (
+                    <button onClick={() => runAction(prob, 'resolve')} disabled={actingId === prob.id} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1 disabled:opacity-50">
+                      <Flag className="w-3.5 h-3.5" /><span>Confirm Resolved</span>
+                    </button>
+                  )}
+                  <Link to={`/problems/${prob.id}`} className="px-4 py-2 bg-white border border-surface-border hover:bg-amber-50 text-amber-700 rounded-xl text-xs font-bold transition flex items-center space-x-1">
+                    <span>View</span><ArrowRight className="w-3.5 h-3.5" />
                   </Link>
                 </div>
               </div>
             ))}
           </div>
+        )}
+        {actionError && (
+          <p className="text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            {actionError}
+          </p>
         )}
       </div>
 

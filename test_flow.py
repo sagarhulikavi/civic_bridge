@@ -21,10 +21,21 @@ def run_tests():
     citizen_user = auth_data["user"]
     print(f"   [OK] Citizen logged in: {citizen_user['name']} ({citizen_user['displayId']})")
 
-    # 2. Test Mandatory Image Validation (Missing Image should fail with 400)
-    print("\n2. Testing Mandatory Image Validation (Submitting without image)...")
-    bad_res = requests.post(f"{BASE_URL}/problems", data={"title": "Test without photo"})
-    assert bad_res.status_code == 400, "Should reject submission without image"
+    # 2. Test Citizen-Only Auth Gate: unauthenticated submission is rejected (401),
+    #    then verify mandatory image validation still rejects an image-less submission.
+    print("\n2. Testing Citizen-Only Auth Gate & Mandatory Image Validation...")
+    # 2a. Unauthenticated API request -> must be rejected
+    anon_res = requests.post(f"{BASE_URL}/problems", data={"title": "Test without auth"})
+    assert anon_res.status_code == 401, f"Anonymous submission should be rejected with 401, got {anon_res.status_code}"
+    print(f"   [OK] Unauthenticated submission rejected: {anon_res.json()['error']['code']}")
+
+    # 2b. Authenticated citizen submitting without an image -> 400 IMAGE_REQUIRED
+    bad_res = requests.post(
+        f"{BASE_URL}/problems",
+        data={"title": "Test without photo"},
+        headers={"Authorization": f"Bearer {citizen_token}"}
+    )
+    assert bad_res.status_code == 400, "Should reject authenticated submission without image"
     print(f"   [OK] Successfully rejected image-less submission: {bad_res.json()['error']['code']}")
 
     # 3. Test Full Problem Submission with Mandatory Image
@@ -59,7 +70,23 @@ def run_tests():
     print(f"   [OK] AI Category: {problem.get('category', {}).get('name', 'Road Infrastructure')}")
     print(f"   [OK] Priority: {problem['priority']} (Score: {problem.get('priorityScore')}/100)")
 
-    # 4. Verify Matches Generated
+    # 3b. Admin Verification Gate: approve the problem so it becomes public
+    #      and university/industry matches are generated (per the sanctioned
+    #      controlled workflow, matching only runs after admin approval).
+    print("\n3b. Admin Verification & Approval (gate for visibility/matching)...")
+    admin_login = requests.post(f"{BASE_URL}/auth/login", json={"email": "admin@drishti.gov.in", "password": "Password@123"})
+    assert admin_login.status_code == 200, f"Admin login failed: {admin_login.text}"
+    admin_token = admin_login.json()["data"]["token"]
+    approve_res = requests.patch(
+        f"{BASE_URL}/problems/{problem_id}/status",
+        json={"status": "APPROVED", "notes": "Approved during end-to-end golden-flow verification"},
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
+    assert approve_res.status_code == 200, f"Admin approval failed: {approve_res.text}"
+    approved_problem = approve_res.json()["data"]["problem"]
+    print(f"   [OK] Problem Approved & routed to matching: {approved_problem['status']}")
+
+    # 4. Verify Matches Generated (after admin approval)
     print("\n4. Verifying Explainable University & Industry Matches...")
     matches_res = requests.get(f"{BASE_URL}/matches/problem/{problem_id}")
     assert matches_res.status_code == 200, f"Match lookup failed: {matches_res.text}"

@@ -103,11 +103,17 @@ export const ProblemDetails = () => {
     e.preventDefault();
     try {
       setSavingOverride(true);
-      const res = await api.post(`/admin/problems/${problem.id}/override`, {
-        priority: overridePriority,
-        status: overrideStatus,
-        notes: 'Admin manual verification.'
-      });
+      const isStatusChange = overrideStatus && overrideStatus !== problem.status;
+      const res = isStatusChange
+        ? await api.patch(`/problems/${problem.id}/status`, {
+            status: overrideStatus,
+            priority: overridePriority,
+            notes: 'Admin manual verification.'
+          })
+        : await api.post(`/admin/problems/${problem.id}/override`, {
+            priority: overridePriority,
+            notes: 'Admin manual verification.'
+          });
 
       if (res.success) {
         setProblem(prev => ({
@@ -559,12 +565,9 @@ export const ProblemDetails = () => {
                   onChange={(e) => setOverrideStatus(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg border border-surface-border bg-white"
                 >
-                  <option value="UNDER_REVIEW">Under Review</option>
                   <option value="APPROVED">Approved / Verified</option>
-                  <option value="MATCHED">Matched</option>
-                  <option value="COLLABORATION">Collaboration</option>
-                  <option value="IN_PROGRESS">In Progress</option>
-                  <option value="RESOLVED">Resolved</option>
+                  <option value="PENDING_ADMIN_REVIEW">Pending Admin Review</option>
+                  <option value="NEEDS_MORE_INFORMATION">Need More Information</option>
                   <option value="REJECTED">Rejected</option>
                 </select>
               </div>

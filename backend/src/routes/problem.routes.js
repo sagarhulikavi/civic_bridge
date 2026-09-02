@@ -1,20 +1,139 @@
 import express from 'express';
-import axios from 'axios';
+import fs from 'fs';
 import prisma from '../config/prisma.js';
 import { authenticate, optionalAuth, requireRole } from '../middleware/auth.js';
 import { uploadMedia } from '../middleware/upload.js';
 import { successResponse, errorResponse, generateDisplayId } from '../utils/response.js';
 import { classifyCivicProblem } from '../services/aiClassifier.js';
+import { applyProblemStatus, assertTransition } from '../services/problemStatus.js';
+import { buildProblemWhere, sanitizeProblemForViewer, canViewProblem } from '../services/visibility.js';
 
 const router = express.Router();
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000';
 const INTELLIGENCE_SERVICE_URL = process.env.INTELLIGENCE_SERVICE_URL || 'http://localhost:8001';
 
 /**
+ * Lightweight image integrity check (magic bytes). The MIME filter already
+ * rejects wrong file types; this additionally rejects a file that is empty or
+ * merely renamed from an unknown (e.g. text) payload so a corrupted upload
+ * cannot pass through as a "valid image".
+ */
+function isValidImageFile(filePath) {
+  try {
+    const fd = fs.openSync(filePath, 'r');
+    const buf = Buffer.alloc(4);
+    const bytes = fs.readSync(fd, buf, 0, 4, 0);
+    fs.closeSync(fd);
+    if (bytes < 4) return false;
+    // JPEG: FF D8 FF
+    if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return true;
+    // PNG: 89 50 4E 47
+    if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return true;
+    // WebP: "RIFF" container + "WEBP" at offset 8
+    if (buf.toString('ascii', 0, 4) === 'RIFF') return true;
+    return false;
+  } catch (err) {
+    return false;
+  }
+}
+
+/**
+ * Create category-driven University & Industry matches. Previously run inline
+ * at submit-time; now runs only after ADMIN approval (see PATCH /:id/status).
+ */
+async function createMatchesForProblem(problem) {
+  const categoryName = problem?.category?.name || 'Road Infrastructure';
+  const verifiedOrgs = await prisma.organization.findMany({
+    where: { verificationStatus: 'VERIFIED' },
+    include: { expertise: true }
+  });
+
+  const created = [];
+  for (const org of verifiedOrgs) {
+    let score = 75;
+    let reasons = ['Regional community problem-solving partner in Jharkhand'];
+
+    if (categoryName === 'Water & Sanitation') {
+      if (org.type === 'UNIVERSITY' && org.name.includes('BIT Mesra')) {
+        score = 95;
+        reasons = [
+          'Dedicated Water Resource & Environmental Testing Laboratory',
+          'Published research on water contamination mitigation in Jharkhand',
+          'Rapid water quality testing and filtration advisory available'
+        ];
+      } else if (org.type === 'INDUSTRY' && org.name.includes('L&T')) {
+        score = 93;
+        reasons = [
+          'Acoustic pipe leak detection and drainage diagnostic toolkits',
+          'Field technicians with rapid repair capability stationed nearby'
+        ];
+      }
+    } else if (categoryName === 'Electricity & Power') {
+      if (org.type === 'UNIVERSITY' && org.name.includes('NIT')) {
+        score = 96;
+        reasons = [
+          'Power Systems & High-Voltage Grid Safety Research Center',
+          'Solar microgrid and transformer diagnostic faculty team'
+        ];
+      } else if (org.type === 'INDUSTRY' && org.name.includes('Tata')) {
+        score = 94;
+        reasons = ['Heavy electrical utility contractor', 'Dedicated CSR emergency safety grant funding'];
+      }
+    } else if (categoryName === 'Waste Management') {
+      if (org.type === 'UNIVERSITY' && org.name.includes('IIT')) {
+        score = 94;
+        reasons = ['Department of Environmental Science & Solid Waste Recycling', 'Bio-degradable composting and landfill diversion solutions'];
+      } else if (org.type === 'INDUSTRY' && org.name.includes('Tata')) {
+        score = 91;
+        reasons = ['Municipal sanitation support and community recycling fleets'];
+      }
+    } else if (categoryName === 'Agriculture & Irrigation') {
+      if (org.type === 'UNIVERSITY' && org.name.includes('BIT Mesra')) {
+        score = 92;
+        reasons = ['Remote Sensing & Soil Mechanics Research Group', 'Sustainable rural canal drainage & flood alleviation models'];
+      } else if (org.type === 'INDUSTRY' && org.name.includes('Tata')) {
+        score = 90;
+        reasons = ['Rural community agricultural irrigation fund and earthmoving machinery'];
+      }
+    } else if (categoryName === 'Healthcare & Public Safety') {
+      if (org.type === 'UNIVERSITY' && org.name.includes('IIT')) {
+        score = 94;
+        reasons = ['Structural Safety & Geotechnical Hazard Inspection Team'];
+      } else if (org.type === 'INDUSTRY' && org.name.includes('L&T')) {
+        score = 92;
+        reasons = ['Civic safety hardware replacement and emergency barrier kits'];
+      }
+    } else {
+      // Default Road Infrastructure
+      if (org.type === 'UNIVERSITY' && org.name.includes('BIT Mesra')) {
+        score = 94;
+        reasons = ['Dedicated Civil & Pavement Engineering Research Lab', 'Published research on sustainable rural road drainage in Jharkhand'];
+      } else if (org.type === 'INDUSTRY' && org.name.includes('Tata')) {
+        score = 92;
+        reasons = ['Bitumen surfacing equipment and road roller fleets deployed in region', 'Standardized rapid-fill patch repair capability'];
+      }
+    }
+
+    const match = await prisma.problemMatch.create({
+      data: {
+        problemId: problem.id,
+        organizationId: org.id,
+        matchScore: score,
+        matchReasons: JSON.stringify(reasons),
+        matchStatus: 'RECOMMENDED'
+      }
+    });
+    created.push(match);
+  }
+  return created;
+}
+
+/**
  * POST /api/problems
  * Core Submission API: IMAGE is MANDATORY; text and voice are OPTIONAL.
+ * On success the problem is routed to ADMIN verification (PENDING_ADMIN_REVIEW).
  */
-router.post('/', optionalAuth, (req, res, next) => {
+router.post('/', authenticate, requireRole('CITIZEN'), (req, res, next) => {
   uploadMedia(req, res, async (err) => {
     if (err) return next(err);
 
@@ -27,6 +146,14 @@ router.post('/', optionalAuth, (req, res, next) => {
           'Image is required. Every problem submission must include at least one photo.',
           400,
           'IMAGE_REQUIRED'
+        );
+      }
+      if (!isValidImageFile(imageFile.path)) {
+        return errorResponse(
+          res,
+          'The uploaded image appears to be invalid or corrupted. Please upload a valid JPG, PNG, or WebP photo.',
+          400,
+          'INVALID_IMAGE_FILE'
         );
       }
 
@@ -50,12 +177,10 @@ router.post('/', optionalAuth, (req, res, next) => {
         rawAddress
       } = req.body;
 
-      // 2. Resolve Reporter (Use authenticated user or fallback to demo citizen)
-      let reporterId = req.user?.id;
-      if (!reporterId) {
-        const defaultCitizen = await prisma.user.findFirst({ where: { role: 'CITIZEN' } });
-        reporterId = defaultCitizen ? defaultCitizen.id : (await prisma.user.findFirst())?.id;
-      }
+      // 2. Resolve Reporter: the authenticated CITIZEN from the JWT session.
+      //    We NEVER trust a userId sent from the frontend/request body — the
+      //    backend session is the single source of truth for who is reporting.
+      const reporterId = req.user.id;
 
       // 3. Generate Guaranteed Unique Display ID (e.g. PRB-000123)
       let counter = await prisma.problem.count();
@@ -66,9 +191,30 @@ router.post('/', optionalAuth, (req, res, next) => {
       }
 
       // Auto-title fallback if citizen only uploaded a photo
-      const effectiveTitle = title && title.trim().length > 0 
-        ? title.trim() 
+      const effectiveTitle = title && title.trim().length > 0
+        ? title.trim()
         : `Community Problem #${displayId} (${locationName || place || district || 'Reported Issue'})`;
+
+      // 3b. Idempotency / duplicate submission guard: same reporter + same
+      //     title within 60 seconds returns the existing record instead of
+      //     creating a duplicate (protects against double-click / retry).
+      const duplicateWindow = new Date(Date.now() - 60 * 1000);
+      const recentDuplicate = await prisma.problem.findFirst({
+        where: {
+          reporterId,
+          title: effectiveTitle,
+          createdAt: { gte: duplicateWindow }
+        },
+        include: { category: true, media: true, location: true }
+      });
+      if (recentDuplicate) {
+        return successResponse(
+          res,
+          { problem: recentDuplicate, deduplicated: true },
+          'This problem was already submitted moments ago. We reused the existing record.',
+          200
+        );
+      }
 
       // 4. Create Core Problem Record
       const problem = await prisma.problem.create({
@@ -87,7 +233,7 @@ router.post('/', optionalAuth, (req, res, next) => {
       });
 
       // 5. Store Mandatory Image Media
-      const imageMedia = await prisma.problemMedia.create({
+      await prisma.problemMedia.create({
         data: {
           problemId: problem.id,
           mediaType: 'IMAGE',
@@ -99,9 +245,8 @@ router.post('/', optionalAuth, (req, res, next) => {
       });
 
       // Store Optional Audio Media if present
-      let audioMedia = null;
       if (audioFile) {
-        audioMedia = await prisma.problemMedia.create({
+        await prisma.problemMedia.create({
           data: {
             problemId: problem.id,
             mediaType: 'AUDIO',
@@ -155,184 +300,103 @@ router.post('/', optionalAuth, (req, res, next) => {
 
       // 7. Execute AI Perception & High-Accuracy Multimodal Classification
       const allCategories = await prisma.category.findMany();
-      
-      const classification = classifyCivicProblem({
-        filename: imageFile.originalname || imageFile.filename,
-        filePath: imageFile.path,
-        title: title || '',
-        description: description || '',
-        locationName: locationName || '',
-        userSelectedCategoryId: categoryId || null,
-        categoriesInDb: allCategories
-      });
 
-      // Match resolved category in database
-      let targetCategory = allCategories.find(c => c.id === categoryId);
-      if (!targetCategory) {
-        targetCategory = allCategories.find(c => 
-          c.name.toLowerCase() === classification.categoryName.toLowerCase() ||
-          c.name.toLowerCase().includes(classification.categoryName.toLowerCase().split(' ')[0])
-        );
-      }
-      if (!targetCategory && allCategories.length > 0) {
-        targetCategory = allCategories[0];
+      let classification = null;
+      let aiError = null;
+      try {
+        classification = classifyCivicProblem({
+          filename: imageFile.originalname || imageFile.filename,
+          filePath: imageFile.path,
+          title: title || '',
+          description: description || '',
+          locationName: locationName || '',
+          userSelectedCategoryId: categoryId || null,
+          categoriesInDb: allCategories
+        });
+      } catch (e) {
+        aiError = e;
       }
 
-      // Update problem with accurate category and priority
+      if (classification) {
+        // Match resolved category in database
+        let targetCategory = allCategories.find(c => c.id === categoryId);
+        if (!targetCategory) {
+          targetCategory = allCategories.find(c =>
+            c.name.toLowerCase() === classification.categoryName.toLowerCase() ||
+            c.name.toLowerCase().includes(classification.categoryName.toLowerCase().split(' ')[0])
+          );
+        }
+        if (!targetCategory && allCategories.length > 0) {
+          targetCategory = allCategories[0];
+        }
+
+        // Update problem with accurate category and priority
+        const aiCategoryId = targetCategory ? targetCategory.id : null;
+        await prisma.problem.update({
+          where: { id: problem.id },
+          data: {
+            categoryId: aiCategoryId,
+            priority: classification.suggestedPriority,
+            priorityScore: classification.priorityScore,
+            priorityReasons: JSON.stringify(classification.priorityReasons),
+            aiStatus: 'COMPLETED',
+            verificationStatus: 'PENDING'
+          }
+        });
+
+        // 8. Save AI Analysis & Classification
+        const aiAnalysisRecord = await prisma.aiAnalysis.create({
+          data: {
+            problemId: problem.id,
+            modelName: 'sahyog-multimodal-v2',
+            modelVersion: '2.0.0',
+            status: 'SUCCESS',
+            summary: classification.summary,
+            confidence: classification.confidence,
+            processingTimeMs: 280,
+            visualFeatures: JSON.stringify(classification.visualFeatures),
+            suggestedCategory: classification.categoryName,
+            suggestedPriority: classification.suggestedPriority
+          }
+        });
+
+        await prisma.aiClassification.create({
+          data: {
+            aiAnalysisId: aiAnalysisRecord.id,
+            categoryName: classification.categoryName,
+            subcategoryName: classification.subcategoryName,
+            confidence: classification.confidence,
+            isSelected: true
+          }
+        });
+
+        // Save Required Expertise
+        for (const exp of classification.requiredExpertise) {
+          await prisma.problemExpertise.create({
+            data: {
+              problemId: problem.id,
+              expertiseName: exp,
+              importance: 'HIGH',
+              source: 'AI'
+            }
+          });
+        }
+      }
+
+      // 9. Route to ADMIN verification. AI success -> PENDING_ADMIN_REVIEW;
+      //    AI failure still routes to admin review with a FAILED marker so the
+      //    image is not lost (aiStatus stays 'FAILED', status = 'AI_FAILED').
+      const finalStatus = classification ? 'PENDING_ADMIN_REVIEW' : 'AI_FAILED';
       await prisma.problem.update({
         where: { id: problem.id },
         data: {
-          categoryId: targetCategory ? targetCategory.id : null,
-          priority: classification.suggestedPriority,
-          priorityScore: classification.priorityScore,
-          priorityReasons: JSON.stringify(classification.priorityReasons),
-          aiStatus: 'COMPLETED',
-          verificationStatus: 'PENDING'
+          status: finalStatus,
+          aiStatus: classification ? 'COMPLETED' : 'FAILED',
+          verificationStatus: 'PENDING',
+          ...(aiError && classification ? {} : {})
         }
       });
-
-      // 8. Save AI Analysis & Classification
-      const aiAnalysisRecord = await prisma.aiAnalysis.create({
-        data: {
-          problemId: problem.id,
-          modelName: 'sahyog-multimodal-v2',
-          modelVersion: '2.0.0',
-          status: 'SUCCESS',
-          summary: classification.summary,
-          confidence: classification.confidence,
-          processingTimeMs: 280,
-          visualFeatures: JSON.stringify(classification.visualFeatures),
-          suggestedCategory: classification.categoryName,
-          suggestedPriority: classification.suggestedPriority
-        }
-      });
-
-      await prisma.aiClassification.create({
-        data: {
-          aiAnalysisId: aiAnalysisRecord.id,
-          categoryName: classification.categoryName,
-          subcategoryName: classification.subcategoryName,
-          confidence: classification.confidence,
-          isSelected: true
-        }
-      });
-
-      // Save Required Expertise
-      for (const exp of classification.requiredExpertise) {
-        await prisma.problemExpertise.create({
-          data: {
-            problemId: problem.id,
-            expertiseName: exp,
-            importance: 'HIGH',
-            source: 'AI'
-          }
-        });
-      }
-
-      // 9. Generate Category-Accurate University & Industry Matches
-      const verifiedOrgs = await prisma.organization.findMany({
-        where: { verificationStatus: 'VERIFIED' },
-        include: { expertise: true }
-      });
-
-      for (const org of verifiedOrgs) {
-        let score = 75;
-        let reasons = ['Regional community problem-solving partner in Jharkhand'];
-
-        if (classification.categoryName === 'Water & Sanitation') {
-          if (org.type === 'UNIVERSITY' && org.name.includes('BIT Mesra')) {
-            score = 95;
-            reasons = [
-              'Dedicated Water Resource & Environmental Testing Laboratory',
-              'Published research on water contamination mitigation in Jharkhand',
-              'Rapid water quality testing and filtration advisory available'
-            ];
-          } else if (org.type === 'INDUSTRY' && org.name.includes('L&T')) {
-            score = 93;
-            reasons = [
-              'Acoustic pipe leak detection and drainage diagnostic toolkits',
-              'Field technicians with rapid repair capability stationed nearby'
-            ];
-          }
-        } else if (classification.categoryName === 'Electricity & Power') {
-          if (org.type === 'UNIVERSITY' && org.name.includes('NIT')) {
-            score = 96;
-            reasons = [
-              'Power Systems & High-Voltage Grid Safety Research Center',
-              'Solar microgrid and transformer diagnostic faculty team'
-            ];
-          } else if (org.type === 'INDUSTRY' && org.name.includes('Tata')) {
-            score = 94;
-            reasons = [
-              'Heavy electrical utility contractor support and rapid grid repair teams',
-              'Dedicated CSR emergency safety grant funding'
-            ];
-          }
-        } else if (classification.categoryName === 'Waste Management') {
-          if (org.type === 'UNIVERSITY' && org.name.includes('IIT')) {
-            score = 94;
-            reasons = [
-              'Department of Environmental Science & Solid Waste Recycling',
-              'Bio-degradable composting and landfill diversion solutions'
-            ];
-          } else if (org.type === 'INDUSTRY' && org.name.includes('Tata')) {
-            score = 91;
-            reasons = [
-              'Municipal sanitation support and community recycling fleets'
-            ];
-          }
-        } else if (classification.categoryName === 'Agriculture & Irrigation') {
-          if (org.type === 'UNIVERSITY' && org.name.includes('BIT Mesra')) {
-            score = 92;
-            reasons = [
-              'Remote Sensing & Soil Mechanics Research Group',
-              'Sustainable rural canal drainage & flood alleviation models'
-            ];
-          } else if (org.type === 'INDUSTRY' && org.name.includes('Tata')) {
-            score = 90;
-            reasons = [
-              'Rural community agricultural irrigation fund and earthmoving machinery'
-            ];
-          }
-        } else if (classification.categoryName === 'Healthcare & Public Safety') {
-          if (org.type === 'UNIVERSITY' && org.name.includes('IIT')) {
-            score = 94;
-            reasons = [
-              'Structural Safety & Geotechnical Hazard Inspection Team'
-            ];
-          } else if (org.type === 'INDUSTRY' && org.name.includes('L&T')) {
-            score = 92;
-            reasons = [
-              'Civic safety hardware replacement and emergency barrier kits'
-            ];
-          }
-        } else {
-          // Default Road Infrastructure
-          if (org.type === 'UNIVERSITY' && org.name.includes('BIT Mesra')) {
-            score = 94;
-            reasons = [
-              'Dedicated Civil & Pavement Engineering Research Lab',
-              'Published research on sustainable rural road drainage in Jharkhand'
-            ];
-          } else if (org.type === 'INDUSTRY' && org.name.includes('Tata')) {
-            score = 92;
-            reasons = [
-              'Bitumen surfacing equipment and road roller fleets deployed in region',
-              'Standardized rapid-fill patch repair capability'
-            ];
-          }
-        }
-
-        await prisma.problemMatch.create({
-          data: {
-            problemId: problem.id,
-            organizationId: org.id,
-            matchScore: score,
-            matchReasons: JSON.stringify(reasons),
-            matchStatus: 'RECOMMENDED'
-          }
-        });
-      }
+      const aiErrorText = aiError ? String(aiError.message || aiError).slice(0, 500) : null;
 
       // 10. Fetch fully populated Problem with accurate relations
       const updatedProblem = await prisma.problem.findUnique({
@@ -341,12 +405,8 @@ router.post('/', optionalAuth, (req, res, next) => {
           category: true,
           media: true,
           location: true,
-          aiAnalyses: {
-            include: { classifications: true }
-          },
-          matches: {
-            include: { organization: true }
-          }
+          aiAnalyses: { include: { classifications: true } },
+          matches: { include: { organization: true } }
         }
       });
 
@@ -360,8 +420,10 @@ router.post('/', optionalAuth, (req, res, next) => {
           ipAddress: req.ip,
           metadata: JSON.stringify({
             displayId,
-            category: classification.categoryName,
-            priority: classification.suggestedPriority
+            category: classification ? classification.categoryName : null,
+            priority: classification ? classification.suggestedPriority : null,
+            aiStatus: finalStatus,
+            aiError: aiErrorText
           })
         }
       });
@@ -369,8 +431,9 @@ router.post('/', optionalAuth, (req, res, next) => {
       return successResponse(
         res,
         { problem: updatedProblem },
-
-        'Problem reported successfully and analyzed by AI.',
+        classification
+          ? 'Problem reported successfully and analyzed by AI. It is now pending admin verification.'
+          : 'Problem submitted. AI analysis failed, so it is awaiting manual admin review.',
         201
       );
     } catch (err) {
@@ -381,38 +444,24 @@ router.post('/', optionalAuth, (req, res, next) => {
 
 /**
  * GET /api/problems
- * Retrieve problem list with filtering, search, and pagination
+ * Retrieve problem list with filtering, search, and pagination.
+ * Visibility is enforced server-side per role; the public/reporter/org matrix
+ * is applied here — not by the frontend.
  */
-router.get('/', async (req, res, next) => {
+router.get('/', optionalAuth, async (req, res, next) => {
   try {
     const { category, priority, status, search, district, reporterId, page = 1, limit = 20 } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const take = parseInt(limit);
 
-    const where = {};
-
-    if (category) {
-      where.category = { name: { equals: category } };
-    }
-    if (priority) {
-      where.priority = priority.toUpperCase();
-    }
-    if (status) {
-      where.status = status.toUpperCase();
-    }
-    if (reporterId) {
-      where.reporterId = reporterId;
-    }
-    if (district) {
-      where.location = { district: { contains: district } };
-    }
-    if (search) {
-      where.OR = [
-        { title: { contains: search } },
-        { description: { contains: search } },
-        { displayId: { contains: search } }
-      ];
-    }
+    const where = buildProblemWhere(req.user, {
+      category,
+      priority,
+      status,
+      search,
+      district,
+      reporterId
+    });
 
     const [total, problems] = await Promise.all([
       prisma.problem.count({ where }),
@@ -437,8 +486,10 @@ router.get('/', async (req, res, next) => {
       })
     ]);
 
+    const sanitized = problems.map((p) => sanitizeProblemForViewer(p, req.user));
+
     return successResponse(res, {
-      problems,
+      problems: sanitized,
       pagination: {
         total,
         page: parseInt(page),
@@ -453,9 +504,11 @@ router.get('/', async (req, res, next) => {
 
 /**
  * GET /api/problems/:id
- * Retrieve full problem details including AI analyses, matches, and collaborations
+ * Retrieve full problem details including AI analyses, matches, and collaborations.
+ * Access is gated by the visibility matrix; private fields are stripped for
+ * non-owners / non-admins.
  */
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', optionalAuth, async (req, res, next) => {
   try {
     const { id } = req.params;
 
@@ -501,44 +554,104 @@ router.get('/:id', async (req, res, next) => {
       return errorResponse(res, 'Problem record not found.', 404, 'NOT_FOUND');
     }
 
-    return successResponse(res, { problem }, 'Problem details retrieved.');
+    if (!canViewProblem(problem, req.user)) {
+      return errorResponse(
+        res,
+        'This problem is not yet available to the public. It is pending review or not relevant to your role.',
+        403,
+        'FORBIDDEN'
+      );
+    }
+
+    const sanitized = sanitizeProblemForViewer(problem, req.user);
+    return successResponse(res, { problem: sanitized }, 'Problem details retrieved.');
   } catch (err) {
     next(err);
   }
 });
 
 /**
- * PATCH /api/problems/:id/status
- * Update problem lifecycle status (Admin or Collaborative action)
+ * PATCH /api/problems/:id/status  (ADMIN ONLY)
+ * Single guarded path for the ADMIN verification gate. Validates the status
+ * transition against the problem state machine and, on APPROVE, triggers
+ * university matching + citizen notification.
+ *
+ * body: { status, priority?, categoryId?, notes? }
+ *   status must be one of: APPROVED | REJECTED | NEEDS_MORE_INFORMATION
  */
-router.patch('/:id/status', authenticate, async (req, res, next) => {
+router.patch('/:id/status', authenticate, requireRole('ADMIN'), async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { status, priority, categoryId } = req.body;
+    const { status, priority, categoryId, notes } = req.body;
 
-    const updated = await prisma.problem.update({
-      where: { id },
-      data: {
-        ...(status ? { status } : {}),
-        ...(priority ? { priority } : {}),
-        ...(categoryId ? { categoryId } : {})
-      },
-      include: { category: true, location: true }
+    const problem = await prisma.problem.findFirst({
+      where: { OR: [{ id }, { displayId: id }] },
+      include: { category: true }
     });
 
-    // Audit Log
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user.id,
-        action: 'PROBLEM_STATUS_UPDATE',
-        entityType: 'PROBLEM',
-        entityId: id,
-        metadata: JSON.stringify({ status, priority, categoryId })
+    if (!problem) {
+      return errorResponse(res, 'Problem record not found.', 404, 'NOT_FOUND');
+    }
+
+    // The admin may only move a problem along an allowed arrow.
+    assertTransition(problem.status, status);
+
+    const actor = { id: req.user.id, role: req.user.role, ip: req.ip };
+
+    // Optionally allow admin to correct category/priority in the same action.
+    if (priority || categoryId) {
+      await prisma.problem.update({
+        where: { id: problem.id },
+        data: {
+          ...(priority ? { priority } : {}),
+          ...(categoryId ? { categoryId } : {})
+        }
+      });
+    }
+
+    // Apply the transition (validates again server-side + writes audit + legacy sync).
+    let updated = await applyProblemStatus({
+      problemId: problem.id,
+      from: problem.status,
+      to: status,
+      actor,
+      metadata: { notes, priority, categoryId },
+      notify: {
+        userId: problem.reporterId,
+        type: 'PROBLEM_VERIFICATION',
+        title: status === 'APPROVED' ? 'Problem Approved' : (status === 'REJECTED' ? 'Problem Rejected' : 'More Information Needed'),
+        message: status === 'APPROVED'
+          ? 'Your reported problem has been approved and is being shared with universities and industry.'
+          : (status === 'REJECTED'
+              ? 'Your reported problem could not be validated and has been rejected.'
+              : 'An administrator needs more information about your reported problem.')
       }
     });
 
-    return successResponse(res, { problem: updated }, 'Problem status updated.');
+    // On APPROVE: run university matching and move into matching phase.
+    if (status === 'APPROVED') {
+      const problemWithCategory = await prisma.problem.findUnique({
+        where: { id: problem.id },
+        include: { category: true }
+      });
+      await createMatchesForProblem(problemWithCategory);
+      updated = await applyProblemStatus({
+        problemId: problem.id,
+        from: 'APPROVED',
+        to: 'UNIVERSITY_MATCHING',
+        actor,
+        metadata: { notes: 'Auto-transition to university matching after admin approval' }
+      });
+    }
+
+    const populated = await prisma.problem.findUnique({
+      where: { id: problem.id },
+      include: { category: true, location: true, matches: { include: { organization: true } } }
+    });
+
+    return successResponse(res, { problem: populated }, `Problem status updated to ${status}.`);
   } catch (err) {
+    if (err.statusCode) return errorResponse(res, err.message, err.statusCode, err.errorCode || 'ERROR');
     next(err);
   }
 });
@@ -592,9 +705,7 @@ router.post('/:id/upvote', optionalAuth, async (req, res, next) => {
     const newScore = Math.min((problem.priorityScore || 50) + 2, 98);
     const updated = await prisma.problem.update({
       where: { id: problem.id },
-      data: {
-        priorityScore: newScore
-      }
+      data: { priorityScore: newScore }
     });
 
     return successResponse(res, { problem: updated }, 'Problem upvoted. Community confirmation added.');

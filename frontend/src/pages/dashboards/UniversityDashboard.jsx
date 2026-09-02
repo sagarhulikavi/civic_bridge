@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { GraduationCap, Award, Sparkles, Building, ArrowRight, CheckCircle2, Users, Wrench } from 'lucide-react';
+import { GraduationCap, Award, ArrowRight, CheckCircle2, Users, Wrench, Lightbulb, Beaker } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { STATUS_LABELS } from '../../components/common/StatusTimeline';
 import api from '../../services/api';
 
 export const UniversityDashboard = () => {
   const { user } = useAuth();
   const [matchedProblems, setMatchedProblems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [actingId, setActingId] = useState(null);
+  const [actionError, setActionError] = useState(null);
 
   useEffect(() => {
     fetchMatchedProblems();
@@ -24,6 +27,21 @@ export const UniversityDashboard = () => {
       console.error('Failed to load university problems:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const runAction = async (prob, action) => {
+    try {
+      setActingId(prob.id);
+      setActionError(null);
+      const res = await api.post(`/workflow/${prob.id}/${action}`);
+      if (res.success) {
+        await fetchMatchedProblems();
+      }
+    } catch (err) {
+      setActionError(err.message || 'Action failed. Please try again.');
+    } finally {
+      setActingId(null);
     }
   };
 
@@ -111,23 +129,63 @@ export const UniversityDashboard = () => {
                     <div className="flex items-center space-x-3 text-[11px] text-dark-500 pt-1">
                       <span>Location: <b>{prob.location?.district}, Jharkhand</b></span>
                       <span>•</span>
-                      <span className="text-indigo-600 font-semibold">Match Score: 94% (Civil Research Lab)</span>
+                      <span className="text-indigo-600 font-semibold">Match Score: {prob.matches?.[0]?.matchScore || 94}% ({prob.matches?.[0]?.organization?.name || 'Research Lab'})</span>
+                    </div>
+                    <div className="mt-2">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        {STATUS_LABELS[prob.status] || prob.status}
+                      </span>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center space-x-2 self-end md:self-center">
+                <div className="flex flex-wrap items-center gap-2 self-end md:self-center">
                   <Link
                     to={`/problems/${prob.id}`}
-                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1"
+                    className="px-4 py-2 bg-white border border-surface-border hover:bg-indigo-50 text-indigo-700 rounded-xl text-xs font-bold transition flex items-center space-x-1"
                   >
-                    <span>View & Collaborate</span>
+                    <span>View</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </Link>
+                  {prob.status === 'UNIVERSITY_MATCHING' && (
+                    <button
+                      onClick={() => runAction(prob, 'interest')}
+                      disabled={actingId === prob.id}
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1 disabled:opacity-50"
+                    >
+                      <Users className="w-3.5 h-3.5" />
+                      <span>Express Interest</span>
+                    </button>
+                  )}
+                  {prob.status === 'UNIVERSITY_INTERESTED' && (
+                    <button
+                      onClick={() => runAction(prob, 'idea')}
+                      disabled={actingId === prob.id}
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1 disabled:opacity-50"
+                    >
+                      <Lightbulb className="w-3.5 h-3.5" />
+                      <span>Submit Idea</span>
+                    </button>
+                  )}
+                  {prob.status === 'IDEA_SUBMITTED' && (
+                    <button
+                      onClick={() => runAction(prob, 'prototype')}
+                      disabled={actingId === prob.id}
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1 disabled:opacity-50"
+                    >
+                      <Beaker className="w-3.5 h-3.5" />
+                      <span>Submit Prototype</span>
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
           </div>
+        )}
+        {actionError && (
+          <p className="text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            {actionError}
+          </p>
         )}
       </div>
 

@@ -1,158 +1,130 @@
-// Prisma Schema for Sahyog Platform
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-// ----------------------------------------------------
-// 1. Users & Authentication
-// ----------------------------------------------------
-
 model User {
-  id                String    @id @default(uuid())
-  displayId         String    @unique // e.g. USR-000001
-  name              String
-  email             String    @unique
-  phone             String?
-  passwordHash      String
-  preferredLanguage String    @default("en") // en, hi, kh
-  role              String    @default("CITIZEN") // CITIZEN, UNIVERSITY, INDUSTRY, ADMIN
-  status            String    @default("ACTIVE") // ACTIVE, SUSPENDED, DELETED
-  emailVerified     Boolean   @default(false)
-  emailVerifiedAt   DateTime?
-  organizationId    String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  lastLoginAt       DateTime?
-
-  // Relations
-  organization         Organization?         @relation(fields: [organizationId], references: [id])
-  problems             Problem[]             @relation("UserProblems")
-  comments             Comment[]
-  notifications        Notification[]
+  id                   String                   @id @default(uuid())
+  displayId            String                   @unique
+  name                 String
+  email                String                   @unique
+  phone                String?
+  passwordHash         String
+  preferredLanguage    String                   @default("en")
+  role                 String                   @default("CITIZEN")
+  status               String                   @default("ACTIVE")
+  emailVerified        Boolean                  @default(false)
+  emailVerifiedAt      DateTime?
+  organizationId       String?
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+  lastLoginAt          DateTime?
   auditLogs            AuditLog[]
-  supportTickets       SupportTicket[]
-  passwordResetTokens  PasswordResetToken[]
-  emailTokens          EmailVerificationToken[]
-  cookieConsents       CookieConsent[]
   collaborationMembers CollaborationMember[]
+  comments             Comment[]
+  cookieConsents       CookieConsent[]
+  emailTokens          EmailVerificationToken[]
+  notifications        Notification[]
+  passwordResetTokens  PasswordResetToken[]
+  problems             Problem[]                @relation("UserProblems")
   solutionUpdates      SolutionUpdate[]
+  supportTickets       SupportTicket[]
+  organization         Organization?            @relation(fields: [organizationId], references: [id])
 }
 
-// ----------------------------------------------------
-// 2. Organizations (Universities & Industries)
-// ----------------------------------------------------
-
 model Organization {
-  id                 String   @id @default(uuid())
-  displayId          String   @unique // e.g. ORG-000001
-  name               String
-  type               String   // UNIVERSITY, INDUSTRY, NGO, GOVERNMENT
-  description        String?
-  website            String?
-  email              String?
-  phone              String?
-  location           String?
-  district           String?
-  state              String?
-  verificationStatus String   @default("VERIFIED") // PENDING, VERIFIED, REJECTED
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-
-  // Relations
-  users                User[]
+  id                   String                  @id @default(uuid())
+  displayId            String                  @unique
+  name                 String
+  type                 String
+  description          String?
+  website              String?
+  email                String?
+  phone                String?
+  location             String?
+  district             String?
+  state                String?
+  verificationStatus   String                  @default("VERIFIED")
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+  collaborationMembers CollaborationMember[]
   expertise            OrganizationExpertise[]
   matches              ProblemMatch[]
-  collaborationMembers CollaborationMember[]
+  users                User[]
 }
 
 model OrganizationExpertise {
-  id                String   @id @default(uuid())
+  id                String       @id @default(uuid())
   organizationId    String
-  expertiseName     String   // e.g. "Civil Engineering", "Road Infrastructure", "IoT Sensors"
-  expertiseCategory String?  // e.g. "Engineering", "Technology", "Funding"
+  expertiseName     String
+  expertiseCategory String?
   description       String?
-  createdAt         DateTime @default(now())
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt         DateTime     @default(now())
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 }
-
-// ----------------------------------------------------
-// 3. Problem Categories
-// ----------------------------------------------------
 
 model Category {
-  id          String   @id @default(uuid())
-  name        String   @unique // e.g. "Road Infrastructure", "Water Quality", "Waste Management"
-  nameHi      String?  // e.g. "सड़क अवसंरचना"
-  nameKh      String?  // e.g. "डहर मरम्मत"
+  id          String    @id @default(uuid())
+  name        String    @unique
+  nameHi      String?
+  nameKh      String?
   description String?
-  icon        String?  // Lucide icon identifier
+  icon        String?
   parentId    String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  problems Problem[]
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  problems    Problem[]
 }
 
-// ----------------------------------------------------
-// 4. Problems & Media (Central Entity)
-// ----------------------------------------------------
-
 model Problem {
-  id                 String   @id @default(uuid())
-  displayId          String   @unique // e.g. PRB-000001
+  id                 String                 @id @default(uuid())
+  displayId          String                 @unique
   reporterId         String
   title              String
   description        String?
-  originalLanguage   String   @default("en") // en, hi, kh
+  originalLanguage   String                 @default("en")
   categoryId         String?
-  status             String   @default("SUBMITTED") // SUBMITTED, AI_PROCESSING, UNDER_REVIEW, APPROVED, MATCHED, COLLABORATION, IN_PROGRESS, RESOLVED, REJECTED, DUPLICATE
-  priority           String   @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
-  priorityScore      Int      @default(50) // 0 - 100
-  priorityReasons    String?  // JSON stringified array of reasons
-  aiStatus           String   @default("PENDING") // PENDING, COMPLETED, FAILED
-  verificationStatus String   @default("PENDING") // PENDING, APPROVED, REJECTED
-  isDuplicate        Boolean  @default(false)
+  status             String                 @default("SUBMITTED")
+  priority           String                 @default("MEDIUM")
+  priorityScore      Int                    @default(50)
+  priorityReasons    String?
+  aiStatus           String                 @default("PENDING")
+  verificationStatus String                 @default("PENDING")
+  isDuplicate        Boolean                @default(false)
   duplicateOfId      String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-
-  // Relations
-  reporter        User                   @relation("UserProblems", fields: [reporterId], references: [id], onDelete: Cascade)
-  category        Category?              @relation(fields: [categoryId], references: [id])
-  media           ProblemMedia[]
-  location        Location?
-  aiAnalyses      AiAnalysis[]
-  nlpResults      NlpResult[]
-  expertise       ProblemExpertise[]
-  matches         ProblemMatch[]
-  collaborations  Collaboration[]
-  solutions       Solution[]
-  comments        Comment[]
-  clusterMembers  ProblemClusterMember[]
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  aiAnalyses         AiAnalysis[]
+  collaborations     Collaboration[]
+  comments           Comment[]
+  location           Location?
+  nlpResults         NlpResult[]
+  category           Category?              @relation(fields: [categoryId], references: [id])
+  reporter           User                   @relation("UserProblems", fields: [reporterId], references: [id], onDelete: Cascade)
+  clusterMembers     ProblemClusterMember[]
+  expertise          ProblemExpertise[]
+  matches            ProblemMatch[]
+  media              ProblemMedia[]
+  solutions          Solution[]
 }
 
 model ProblemMedia {
-  id         String   @id @default(uuid())
+  id         String      @id @default(uuid())
   problemId  String
-  mediaType  String   // IMAGE (Mandatory), AUDIO (Optional)
+  mediaType  String
   fileUrl    String
   storageKey String
   mimeType   String
-  fileSize   Int      // in bytes
-  duration   Float?   // in seconds for audio
-  createdAt  DateTime @default(now())
-
-  problem    Problem     @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  fileSize   Int
+  duration   Float?
+  createdAt  DateTime    @default(now())
   asrResults AsrResult[]
+  problem    Problem     @relation(fields: [problemId], references: [id], onDelete: Cascade)
 }
 
 model Location {
@@ -172,183 +144,159 @@ model Location {
   rawAddress   String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-
-  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  problem      Problem  @relation(fields: [problemId], references: [id], onDelete: Cascade)
 }
 
-// ----------------------------------------------------
-// 5. AI Perception & Processing History
-// ----------------------------------------------------
-
 model AiAnalysis {
-  id               String   @id @default(uuid())
-  problemId        String
-  modelName        String   @default("sahyog-multimodal-v1")
-  modelVersion     String   @default("1.0.0")
-  status           String   @default("SUCCESS") // SUCCESS, FAILED
-  summary          String?
-  confidence       Float    @default(0.0) // 0.0 to 1.0
-  processingTimeMs Int      @default(0)
-  visualFeatures   String?  // JSON stringified array of visual tags
+  id                String             @id @default(uuid())
+  problemId         String
+  modelName         String             @default("sahyog-multimodal-v1")
+  modelVersion      String             @default("1.0.0")
+  status            String             @default("SUCCESS")
+  summary           String?
+  confidence        Float              @default(0.0)
+  processingTimeMs  Int                @default(0)
+  visualFeatures    String?
   suggestedCategory String?
   suggestedPriority String?
-  createdAt        DateTime @default(now())
-
-  problem         Problem            @relation(fields: [problemId], references: [id], onDelete: Cascade)
-  classifications AiClassification[]
+  createdAt         DateTime           @default(now())
+  problem           Problem            @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  classifications   AiClassification[]
 }
 
 model AiClassification {
-  id              String   @id @default(uuid())
+  id              String     @id @default(uuid())
   aiAnalysisId    String
   categoryName    String
   subcategoryName String?
   confidence      Float
-  isSelected      Boolean  @default(false)
-  createdAt       DateTime @default(now())
-
-  aiAnalysis AiAnalysis @relation(fields: [aiAnalysisId], references: [id], onDelete: Cascade)
+  isSelected      Boolean    @default(false)
+  createdAt       DateTime   @default(now())
+  aiAnalysis      AiAnalysis @relation(fields: [aiAnalysisId], references: [id], onDelete: Cascade)
 }
 
 model AsrResult {
-  id         String   @id @default(uuid())
+  id         String       @id @default(uuid())
   mediaId    String
-  language   String   // khortha, hindi, english
+  language   String
   transcript String
-  confidence Float    @default(0.0)
-  modelName  String   @default("whisper-multilingual-v1")
-  createdAt  DateTime @default(now())
-
-  media ProblemMedia @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  confidence Float        @default(0.0)
+  modelName  String       @default("whisper-multilingual-v1")
+  createdAt  DateTime     @default(now())
+  media      ProblemMedia @relation(fields: [mediaId], references: [id], onDelete: Cascade)
 }
 
 model NlpResult {
   id                String   @id @default(uuid())
   problemId         String
-  source            String   // TEXT, ASR
+  source            String
   language          String
   normalizedText    String?
   summary           String?
-  keywords          String?  // JSON stringified array
-  entities          String?  // JSON stringified array
-  requiredExpertise String?  // JSON stringified array
+  keywords          String?
+  entities          String?
+  requiredExpertise String?
   confidence        Float    @default(0.0)
   createdAt         DateTime @default(now())
-
-  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  problem           Problem  @relation(fields: [problemId], references: [id], onDelete: Cascade)
 }
 
 model ProblemExpertise {
   id            String   @id @default(uuid())
   problemId     String
-  expertiseName String   // e.g. "Civil Engineering", "Drainage Systems"
-  importance    String   @default("HIGH") // CRITICAL, HIGH, MEDIUM
-  source        String   @default("AI") // AI, ADMIN, USER
+  expertiseName String
+  importance    String   @default("HIGH")
+  source        String   @default("AI")
   createdAt     DateTime @default(now())
-
-  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  problem       Problem  @relation(fields: [problemId], references: [id], onDelete: Cascade)
 }
 
-// ----------------------------------------------------
-// 6. Matching, Clusters & Duplicates
-// ----------------------------------------------------
-
 model ProblemMatch {
-  id             String   @id @default(uuid())
+  id             String       @id @default(uuid())
   problemId      String
   organizationId String
-  matchScore     Int      // 0 - 100
-  matchReasons   String   // JSON stringified array: ["Civil Eng Lab available", "Previous road project"]
-  matchStatus    String   @default("RECOMMENDED") // RECOMMENDED, VIEWED, INTERESTED, ACCEPTED, REJECTED, EXPIRED
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  problem      Problem      @relation(fields: [problemId], references: [id], onDelete: Cascade)
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  matchScore     Int
+  matchReasons   String
+  matchStatus    String       @default("RECOMMENDED")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  problem        Problem      @relation(fields: [problemId], references: [id], onDelete: Cascade)
 }
 
 model ProblemCluster {
-  id          String   @id @default(uuid())
-  name        String   // e.g. "Ranchi Road Infrastructure Issues"
+  id          String                 @id @default(uuid())
+  name        String
   description String?
   categoryId  String?
-  status      String   @default("ACTIVE")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  members ProblemClusterMember[]
+  status      String                 @default("ACTIVE")
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  members     ProblemClusterMember[]
 }
 
 model ProblemClusterMember {
-  id              String   @id @default(uuid())
+  id              String         @id @default(uuid())
   clusterId       String
   problemId       String
-  similarityScore Float    @default(0.0)
-  createdAt       DateTime @default(now())
-
-  cluster ProblemCluster @relation(fields: [clusterId], references: [id], onDelete: Cascade)
-  problem Problem        @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  similarityScore Float          @default(0.0)
+  createdAt       DateTime       @default(now())
+  cluster         ProblemCluster @relation(fields: [clusterId], references: [id], onDelete: Cascade)
+  problem         Problem        @relation(fields: [problemId], references: [id], onDelete: Cascade)
 }
 
 model ProblemSimilarity {
   id              String   @id @default(uuid())
   problemId1      String
   problemId2      String
-  similarityScore Float    // 0.0 - 1.0
-  reasons         String?  // JSON stringified reasons
-  status          String   @default("POTENTIAL_DUPLICATE") // POTENTIAL_DUPLICATE, MERGED, DISMISSED
+  similarityScore Float
+  reasons         String?
+  status          String   @default("POTENTIAL_DUPLICATE")
   createdAt       DateTime @default(now())
 }
 
-// ----------------------------------------------------
-// 7. Collaboration & Solution Lifecycle
-// ----------------------------------------------------
-
 model Collaboration {
-  id          String    @id @default(uuid())
+  id          String                @id @default(uuid())
   problemId   String
   createdById String
-  status      String    @default("ACTIVE") // PROPOSED, ACTIVE, ON_HOLD, COMPLETED, CANCELLED
-  startDate   DateTime  @default(now())
+  status      String                @default("ACTIVE")
+  startDate   DateTime              @default(now())
   targetDate  DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  problem   Problem               @relation(fields: [problemId], references: [id], onDelete: Cascade)
-  members   CollaborationMember[]
-  solutions Solution[]
-  comments  Comment[]
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  problem     Problem               @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  members     CollaborationMember[]
+  comments    Comment[]
+  solutions   Solution[]
 }
 
 model CollaborationMember {
-  id              String   @id @default(uuid())
+  id              String        @id @default(uuid())
   collaborationId String
   userId          String?
   organizationId  String?
-  role            String   @default("CONTRIBUTOR") // LEAD, RESEARCHER, INDUSTRY_PARTNER, ADVISOR
-  status          String   @default("ACTIVE")
-  joinedAt        DateTime @default(now())
-
-  collaboration Collaboration @relation(fields: [collaborationId], references: [id], onDelete: Cascade)
-  user          User?         @relation(fields: [userId], references: [id])
-  organization  Organization? @relation(fields: [organizationId], references: [id])
+  role            String        @default("CONTRIBUTOR")
+  status          String        @default("ACTIVE")
+  joinedAt        DateTime      @default(now())
+  collaboration   Collaboration @relation(fields: [collaborationId], references: [id], onDelete: Cascade)
+  organization    Organization? @relation(fields: [organizationId], references: [id])
+  user            User?         @relation(fields: [userId], references: [id])
 }
 
 model Solution {
-  id                 String   @id @default(uuid())
+  id                 String           @id @default(uuid())
   problemId          String
   collaborationId    String
   title              String
   description        String?
-  solutionType       String   @default("ENGINEERING") // ENGINEERING, IOT_DEPLOYMENT, COMMUNITY_ACTION, CIVIC_REPAIR
-  status             String   @default("DESIGN") // PROPOSED, DESIGN, PROTOTYPE, TESTING, IMPLEMENTATION, COMPLETED, REJECTED
-  progressPercentage Int      @default(20) // 0 to 100
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-
-  problem       Problem          @relation(fields: [problemId], references: [id], onDelete: Cascade)
-  collaboration Collaboration    @relation(fields: [collaborationId], references: [id], onDelete: Cascade)
-  updates       SolutionUpdate[]
+  solutionType       String           @default("ENGINEERING")
+  status             String           @default("DESIGN")
+  progressPercentage Int              @default(20)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  collaboration      Collaboration    @relation(fields: [collaborationId], references: [id], onDelete: Cascade)
+  problem            Problem          @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  updates            SolutionUpdate[]
 }
 
 model SolutionUpdate {
@@ -358,59 +306,51 @@ model SolutionUpdate {
   title              String
   description        String
   progressPercentage Int
-  stage              String   // DESIGN, PROTOTYPE, TESTING, IMPLEMENTATION, COMPLETED
+  stage              String
   createdAt          DateTime @default(now())
-
-  solution  Solution @relation(fields: [solutionId], references: [id], onDelete: Cascade)
-  updatedBy User     @relation(fields: [updatedById], references: [id])
+  solution           Solution @relation(fields: [solutionId], references: [id], onDelete: Cascade)
+  updatedBy          User     @relation(fields: [updatedById], references: [id])
 }
 
 model Comment {
-  id              String   @id @default(uuid())
+  id              String         @id @default(uuid())
   problemId       String
   collaborationId String?
   userId          String
   parentId        String?
   content         String
-  createdAt       DateTime @default(now())
-
-  problem       Problem        @relation(fields: [problemId], references: [id], onDelete: Cascade)
-  collaboration Collaboration? @relation(fields: [collaborationId], references: [id])
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime       @default(now())
+  collaboration   Collaboration? @relation(fields: [collaborationId], references: [id])
+  problem         Problem        @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
-
-// ----------------------------------------------------
-// 8. Notifications, Support, Security & Audit
-// ----------------------------------------------------
 
 model Notification {
   id            String   @id @default(uuid())
   userId        String
-  type          String   // PROBLEM_SUBMITTED, AI_ANALYZED, MATCH_FOUND, COLLABORATION_STARTED, SOLUTION_UPDATED, RESOLVED
+  type          String
   title         String
   message       String
-  referenceType String?  // PROBLEM, COLLABORATION, SOLUTION
+  referenceType String?
   referenceId   String?
   isRead        Boolean  @default(false)
   createdAt     DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model SupportTicket {
   id          String   @id @default(uuid())
-  displayId   String   @unique // e.g. SUP-000001
+  displayId   String   @unique
   userId      String?
   userEmail   String
-  category    String   // Problem Report, AI Analysis, Voice/Language, Organization, Privacy, Other
+  category    String
   subject     String
   description String
-  status      String   @default("OPEN") // OPEN, IN_PROGRESS, RESOLVED, CLOSED
-  priority    String   @default("MEDIUM") // LOW, MEDIUM, HIGH
+  status      String   @default("OPEN")
+  priority    String   @default("MEDIUM")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
-  user User? @relation(fields: [userId], references: [id])
+  user        User?    @relation(fields: [userId], references: [id])
 }
 
 model CookieConsent {
@@ -424,8 +364,7 @@ model CookieConsent {
   policyVersion String   @default("1.0.0")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-
-  user User? @relation(fields: [userId], references: [id])
+  user          User?    @relation(fields: [userId], references: [id])
 }
 
 model PasswordResetToken {
@@ -435,8 +374,7 @@ model PasswordResetToken {
   expiresAt   DateTime
   used        Boolean  @default(false)
   createdAt   DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model EmailVerificationToken {
@@ -445,20 +383,18 @@ model EmailVerificationToken {
   token     String   @unique
   expiresAt DateTime
   createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model AuditLog {
   id         String   @id @default(uuid())
   userId     String?
-  action     String   // USER_LOGIN, PROBLEM_CREATED, AI_REVIEW_OVERRIDE, COLLABORATION_CREATED, ROLE_CHANGE
-  entityType String   // USER, PROBLEM, AI_ANALYSIS, COLLABORATION
+  action     String
+  entityType String
   entityId   String?
   ipAddress  String?
   userAgent  String?
-  metadata   String?  // JSON stringified payload
+  metadata   String?
   createdAt  DateTime @default(now())
-
-  user User? @relation(fields: [userId], references: [id])
+  user       User?    @relation(fields: [userId], references: [id])
 }

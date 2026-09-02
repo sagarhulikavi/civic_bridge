@@ -2,6 +2,7 @@ import express from 'express';
 import prisma from '../config/prisma.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { successResponse, errorResponse } from '../utils/response.js';
+import { applyProblemStatus } from '../services/problemStatus.js';
 
 const router = express.Router();
 
@@ -25,7 +26,7 @@ router.get('/dashboard', async (req, res, next) => {
       recentAuditLogs
     ] = await Promise.all([
       prisma.problem.count(),
-      prisma.problem.count({ where: { status: { in: ['SUBMITTED', 'AI_PROCESSING', 'UNDER_REVIEW'] } } }),
+      prisma.problem.count({ where: { status: { in: ['PENDING_ADMIN_REVIEW', 'AI_FAILED', 'NEEDS_MORE_INFORMATION'] } } }),
       prisma.problem.count({ where: { status: 'RESOLVED' } }),
       prisma.problem.count({ where: { priority: 'CRITICAL' } }),
       prisma.user.count(),
@@ -64,13 +65,56 @@ router.post('/problems/:id/override', async (req, res, next) => {
     const { id } = req.params;
     const { categoryId, priority, status, notes } = req.body;
 
+    if (status) {
+      // Route status changes through the state machine so invalid arrows and
+      // the "APPROVED is granted only by admin" rule are enforced. This
+      // mirrors the guarded PATCH /:id/status path.
+      const problem = await prisma.problem.findFirst({
+        where: { OR: [{ id }, { displayId: id }] }
+      });
+      if (!problem) {
+        return errorResponse(res, 'Problem record not found.', 404, 'NOT_FOUND');
+      }
+
+      await prisma.problem.update({
+        where: { id: problem.id },
+        data: {
+          ...(categoryId ? { categoryId } : {}),
+          ...(priority ? { priority } : {})
+        }
+      });
+
+      const updated = await applyProblemStatus({
+        problemId: problem.id,
+        from: problem.status,
+        to: status,
+        actor: { id: req.user.id, role: req.user.role, ip: req.ip },
+        metadata: { categoryId, priority, notes }
+      });
+
+      await prisma.auditLog.create({
+        data: {
+          userId: req.user.id,
+          action: 'AI_REVIEW_OVERRIDE',
+          entityType: 'PROBLEM',
+          entityId: id,
+          metadata: JSON.stringify({ categoryId, priority, status, notes })
+        }
+      });
+
+      const populated = await prisma.problem.findUnique({
+        where: { id: problem.id },
+        include: { category: true, location: true, matches: { include: { organization: true } } }
+      });
+      return successResponse(res, { problem: populated }, 'Problem classification verified and updated.');
+    }
+
+    // No status change: just correct category/priority.
     const updated = await prisma.problem.update({
       where: { id },
       data: {
         ...(categoryId ? { categoryId } : {}),
-        ...(priority ? { priority } : {}),
-        ...(status ? { status } : {}),
-        verificationStatus: 'APPROVED'
+        ...(priority ? { priority } : {})
       },
       include: { category: true, location: true }
     });
@@ -87,6 +131,7 @@ router.post('/problems/:id/override', async (req, res, next) => {
 
     return successResponse(res, { problem: updated }, 'Problem classification verified and updated.');
   } catch (err) {
+    if (err.statusCode) return errorResponse(res, err.message, err.statusCode, err.errorCode || 'ERROR');
     next(err);
   }
 });

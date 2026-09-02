@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Camera, CheckCircle2, Clock, MapPin, Plus, AlertCircle, Sparkles } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
+import { STATUS_LABELS } from '../../components/common/StatusTimeline';
 import api from '../../services/api';
 
 export const CitizenDashboard = () => {
@@ -32,8 +33,16 @@ export const CitizenDashboard = () => {
   };
 
   const resolvedCount = myProblems.filter(p => p.status === 'RESOLVED').length;
-  const inProgressCount = myProblems.filter(p => ['COLLABORATION', 'IN_PROGRESS'].includes(p.status)).length;
-  const pendingCount = myProblems.filter(p => ['SUBMITTED', 'AI_PROCESSING', 'UNDER_REVIEW'].length).length;
+  const inProgressCount = myProblems.filter(p => ['UNIVERSITY_MATCHING', 'UNIVERSITY_INTERESTED', 'IDEA_SUBMITTED', 'INDUSTRY_REVIEW', 'ACCEPTED', 'PROTOTYPE_DEVELOPMENT', 'IMPLEMENTED'].includes(p.status)).length;
+  const pendingCount = myProblems.filter(p => ['SUBMITTED', 'AI_ANALYZING', 'AI_FAILED', 'PENDING_ADMIN_REVIEW', 'NEEDS_MORE_INFORMATION'].includes(p.status)).length;
+
+  const statusClass = (status) => {
+    if (status === 'RESOLVED') return 'bg-green-100 text-green-800';
+    if (['REJECTED', 'DECLINED'].includes(status)) return 'bg-red-100 text-red-800';
+    if (['UNIVERSITY_MATCHING', 'UNIVERSITY_INTERESTED', 'IDEA_SUBMITTED', 'INDUSTRY_REVIEW', 'ACCEPTED', 'PROTOTYPE_DEVELOPMENT', 'IMPLEMENTED'].includes(status)) return 'bg-indigo-100 text-indigo-800';
+    if (['SUBMITTED', 'AI_ANALYZING', 'AI_FAILED', 'PENDING_ADMIN_REVIEW', 'NEEDS_MORE_INFORMATION'].includes(status)) return 'bg-amber-100 text-amber-800';
+    return 'bg-blue-100 text-blue-800';
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -78,7 +87,7 @@ export const CitizenDashboard = () => {
             <Clock className="w-6 h-6" />
           </div>
           <div>
-            <span className="text-xs text-dark-500 font-medium">In Collaboration</span>
+            <span className="text-xs text-dark-500 font-medium">In Solution Pipeline</span>
             <div className="text-2xl font-bold text-dark-900">{inProgressCount}</div>
           </div>
         </div>
@@ -135,11 +144,8 @@ export const CitizenDashboard = () => {
                 </div>
 
                 <div className="flex items-center space-x-2 self-end sm:self-center">
-                  <span className={`px-2.5 py-1 rounded text-xs font-bold ${
-                    prob.status === 'RESOLVED' ? 'bg-green-100 text-green-800' :
-                    prob.status === 'COLLABORATION' ? 'bg-indigo-100 text-indigo-800' : 'bg-blue-100 text-blue-800'
-                  }`}>
-                    {prob.status}
+                  <span className={`px-2.5 py-1 rounded text-xs font-bold ${statusClass(prob.status)}`}>
+                    {STATUS_LABELS[prob.status] || prob.status}
                   </span>
                   <Link
                     to={`/problems/${prob.id}`}
