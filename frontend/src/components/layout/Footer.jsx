@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ShieldCheck, Heart, Mail, ExternalLink } from 'lucide-react';
+import { Heart, Mail, ExternalLink } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 
 export const Footer = () => {
@@ -22,10 +22,6 @@ export const Footer = () => {
             <p className="text-xs text-dark-500 leading-relaxed">
               Empowering civic participation through AI perception and multi-stakeholder engineering collaboration between citizens, universities, and industry.
             </p>
-            <div className="inline-flex items-center space-x-1.5 text-xs text-green-700 bg-green-50 px-2.5 py-1 rounded-md border border-green-200 font-medium">
-              <ShieldCheck className="w-4 h-4 text-green-600" />
-              <span>SIH Verified Architecture</span>
-            </div>
           </div>
 
           {/* Col 2: Quick Links */}
@@ -64,7 +60,7 @@ export const Footer = () => {
         </div>
 
         <div className="mt-12 pt-6 border-t border-surface-border flex flex-col md:flex-row items-center justify-between text-xs text-dark-500">
-          <p>© 2026 Sahyog Platform. Open Civic-Tech Architecture for Jharkhand & National Deployment.</p>
+          <p>© 2026 DRISHTI Platform. Open Civic-Tech Architecture for Jharkhand & National Deployment.</p>
           <div className="flex items-center space-x-4 mt-4 md:mt-0">
             <span>Built with React, Node.js, Prisma & FastAPI</span>
           </div>

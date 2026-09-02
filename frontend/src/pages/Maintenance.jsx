@@ -10,7 +10,7 @@ export const Maintenance = () => {
       <div className="space-y-2">
         <h1 className="text-2xl font-bold text-dark-900">Scheduled Civic Maintenance</h1>
         <p className="text-xs text-dark-500 leading-relaxed">
-          The Sahyog platform is currently undergoing scheduled statewide infrastructure updates. All services will resume shortly.
+          The DRISHTI platform is currently undergoing scheduled statewide infrastructure updates. All services will resume shortly.
         </p>
       </div>
 

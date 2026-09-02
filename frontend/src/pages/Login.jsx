@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { LogIn, AlertCircle, ShieldCheck, GraduationCap, Building2, User } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import { PasswordInput } from '../components/common/PasswordInput';
 import api from '../services/api';
 
 export const Login = () => {
@@ -53,7 +54,7 @@ export const Login = () => {
           स
         </div>
         <h1 className="text-2xl font-bold text-dark-900 tracking-tight">
-          Sign In to Sahyog
+          Sign In to DRISHTI
         </h1>
         <p className="text-xs text-dark-500">
           Access your personal or organizational civic workspace.
@@ -76,7 +77,7 @@ export const Login = () => {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="citizen@sahyog.in"
+            placeholder="citizen@drishti.in"
             className="w-full px-3.5 py-2.5 rounded-xl border border-surface-border focus:ring-2 focus:ring-brand-500 outline-none"
           />
         </div>
@@ -88,13 +89,11 @@ export const Login = () => {
               Forgot?
             </Link>
           </div>
-          <input
-            type="password"
-            required
+          <PasswordInput
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
-            className="w-full px-3.5 py-2.5 rounded-xl border border-surface-border focus:ring-2 focus:ring-brand-500 outline-none"
+            required
           />
         </div>
 
@@ -123,7 +122,7 @@ export const Login = () => {
         <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
-            onClick={() => handleDemoLogin('citizen@sahyog.in', 'Password@123')}
+            onClick={() => handleDemoLogin('citizen@drishti.in', 'Password@123')}
             className="p-2 bg-white rounded-lg border border-surface-border text-left hover:border-brand-500 transition"
           >
             <span className="font-bold text-dark-900 block flex items-center"><User className="w-3 h-3 mr-1 text-blue-600" /> Citizen</span>
@@ -150,7 +149,7 @@ export const Login = () => {
 
           <button
             type="button"
-            onClick={() => handleDemoLogin('admin@sahyog.gov.in', 'Password@123')}
+            onClick={() => handleDemoLogin('admin@drishti.gov.in', 'Password@123')}
             className="p-2 bg-white rounded-lg border border-surface-border text-left hover:border-red-500 transition"
           >
             <span className="font-bold text-dark-900 block flex items-center"><ShieldCheck className="w-3 h-3 mr-1 text-red-600" /> Admin</span>

@@ -1,5 +1,5 @@
 """
-Sahyog AI Perception Service (Division 3)
+DRISHTI AI Perception Service (Division 3)
 Handles Computer Vision (Image), ASR (Voice), NLP (Multilingual Text), and Multimodal Fusion.
 """
 
@@ -14,8 +14,8 @@ import io
 from app.cv_classifier import analyze_image_file
 
 app = FastAPI(
-    title="Sahyog AI Perception Service",
-    description="Multimodal Vision, Speech (ASR), and Multilingual NLP Analysis for Sahyog Platform",
+    title="DRISHTI AI Perception Service",
+    description="Multimodal Vision, Speech (ASR), and Multilingual NLP Analysis for DRISHTI Platform",
     version="1.0.0"
 )
 

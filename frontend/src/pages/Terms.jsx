@@ -12,7 +12,7 @@ export const Terms = () => {
         <section className="space-y-2">
           <h2 className="text-sm font-bold text-dark-900">1. Acceptance of Terms</h2>
           <p>
-            By using the Sahyog platform, you agree to comply with all applicable local, state, and national laws and use the system exclusively for lawful civic reporting and collaborative solution engineering.
+            By using the DRISHTI platform, you agree to comply with all applicable local, state, and national laws and use the system exclusively for lawful civic reporting and collaborative solution engineering.
           </p>
         </section>
 
@@ -33,7 +33,7 @@ export const Terms = () => {
         <section className="space-y-2">
           <h2 className="text-sm font-bold text-dark-900">4. Limitation of Liability</h2>
           <p>
-            Sahyog provides a coordination and AI-perception framework and is not liable for indirect damages resulting from community infrastructure failures.
+            DRISHTI provides a coordination and AI-perception framework and is not liable for indirect damages resulting from community infrastructure failures.
           </p>
         </section>
       </div>

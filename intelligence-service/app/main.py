@@ -1,5 +1,5 @@
 """
-Sahyog Intelligence & Decision Engine Service (Division 4)
+DRISHTI Intelligence & Decision Engine Service (Division 4)
 Handles Priority Scoring, Multi-Signal Duplicate Detection, Clustering, and Explainable Matching.
 """
 
@@ -10,7 +10,7 @@ from typing import List, Optional, Dict, Any
 import math
 
 app = FastAPI(
-    title="Sahyog Intelligence & Decision Engine",
+    title="DRISHTI Intelligence & Decision Engine",
     description="Priority Evaluation, Duplicate Detection, Clustering, and Explainable University & Industry Matching",
     version="1.0.0"
 )

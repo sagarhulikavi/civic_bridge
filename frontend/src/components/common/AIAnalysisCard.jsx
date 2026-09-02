@@ -25,7 +25,7 @@ export const AIAnalysisCard = ({ analysis, priority, priorityScore, priorityReas
           </div>
           <div>
             <h3 className="text-sm font-bold text-dark-900">Multimodal AI Synthesis</h3>
-            <p className="text-xs text-dark-500">Processed by Sahyog Vision & NLP Engine v1.0</p>
+            <p className="text-xs text-dark-500">Processed by DRISHTI Vision & NLP Engine v1.0</p>
           </div>
         </div>
         <div className="flex items-center space-x-2">

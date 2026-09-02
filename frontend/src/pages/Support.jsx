@@ -9,7 +9,7 @@ const FAQS = [
   },
   {
     q: 'Can I submit problem descriptions in Khortha or Hindi?',
-    a: 'Yes! Sahyog has built-in vernacular Automatic Speech Recognition (ASR) and multilingual NLP specifically calibrated for Khortha, Hindi, and Indian English dialects.'
+    a: 'Yes! DRISHTI has built-in vernacular Automatic Speech Recognition (ASR) and multilingual NLP specifically calibrated for Khortha, Hindi, and Indian English dialects.'
   },
   {
     q: 'How do universities get matched with civic problems?',
@@ -172,7 +172,7 @@ export const Support = () => {
               </div>
               <div className="flex items-center space-x-2">
                 <Mail className="w-4 h-4 text-brand-600" />
-                <span>Email Support: <b>support@sahyog.gov.in</b></span>
+                <span>Email Support: <b>support@drishti.gov.in</b></span>
               </div>
             </div>
           </div>

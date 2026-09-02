@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { UserPlus, AlertCircle, CheckCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import { PasswordInput } from '../components/common/PasswordInput';
 import api from '../services/api';
 
 export const Register = () => {
@@ -54,7 +55,7 @@ export const Register = () => {
       
       <div className="text-center space-y-2">
         <h1 className="text-2xl font-bold text-dark-900 tracking-tight">
-          Create a Sahyog Account
+          Create a DRISHTI Account
         </h1>
         <p className="text-xs text-dark-500">
           Join the statewide civic problem-solving and engineering network.
@@ -134,14 +135,12 @@ export const Register = () => {
 
         <div>
           <label className="block font-semibold text-dark-700 mb-1">Create Password</label>
-          <input
-            type="password"
-            required
-            minLength={6}
+          <PasswordInput
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="At least 6 characters"
-            className="w-full px-3.5 py-2.5 rounded-xl border border-surface-border focus:ring-2 focus:ring-brand-500 outline-none"
+            required
+            minLength={6}
           />
         </div>
 

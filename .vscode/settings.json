@@ -4,5 +4,19 @@
   "less.lint.unknownAtRules": "ignore",
   "files.associations": {
     "*.css": "tailwindcss"
+  },
+  "eslint.options": {
+    "ignorePatterns": [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/build/**"
+    ]
+  },
+  "eslint.workingDirectories": [
+    { "mode": "auto" }
+  ],
+  "eslint.format.enable": false,
+  "files.exclude": {
+    "**/node_modules": true
   }
 }

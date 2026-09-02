@@ -11,7 +11,7 @@ def run_tests():
     # 1. Test Auth: Login as Demo Citizen
     print("1. Testing Citizen Authentication...")
     login_payload = {
-        "email": "citizen@sahyog.in",
+        "email": "citizen@drishti.in",
         "password": "Password@123"
     }
     res = requests.post(f"{BASE_URL}/auth/login", json=login_payload)
@@ -111,7 +111,7 @@ def run_tests():
     # 7. Support Ticket Submission
     print("\n7. Testing Support Ticketing System...")
     sup_res = requests.post(f"{BASE_URL}/support", json={
-        "email": "citizen@sahyog.in",
+        "email": "citizen@drishti.in",
         "category": "Problem Submission Query",
         "subject": "Inquiry regarding road repair status",
         "description": "Thank you for the quick resolution of BIT Mesra road potholes!"
@@ -121,7 +121,7 @@ def run_tests():
 
     # 8. Admin Dashboard Triage & Audit
     print("\n8. Testing Admin Command Center & Audit Stream...")
-    admin_login = requests.post(f"{BASE_URL}/auth/login", json={"email": "admin@sahyog.gov.in", "password": "Password@123"})
+    admin_login = requests.post(f"{BASE_URL}/auth/login", json={"email": "admin@drishti.gov.in", "password": "Password@123"})
     assert admin_login.status_code == 200
     admin_token = admin_login.json()["data"]["token"]
 

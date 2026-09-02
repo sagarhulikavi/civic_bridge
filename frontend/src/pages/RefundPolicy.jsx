@@ -12,7 +12,7 @@ export const RefundPolicy = () => {
         <section className="space-y-2">
           <h2 className="text-sm font-bold text-dark-900">1. Civic Public Service Statement</h2>
           <p>
-            Sahyog is a civic-tech public interest platform developed for crowdsourcing and collaborative engineering resolution of societal problems. There are no fees charged to citizens for reporting problems, recording audio, or viewing status progress.
+            DRISHTI is a civic-tech public interest platform developed for crowdsourcing and collaborative engineering resolution of societal problems. There are no fees charged to citizens for reporting problems, recording audio, or viewing status progress.
           </p>
         </section>
 
@@ -26,7 +26,7 @@ export const RefundPolicy = () => {
         <section className="space-y-2">
           <h2 className="text-sm font-bold text-dark-900">3. Contact Inquiries</h2>
           <p>
-            For financial compliance inquiries or CSR allocation documentation, contact: <b>csr-grants@sahyog.gov.in</b>.
+            For financial compliance inquiries or CSR allocation documentation, contact: <b>csr-grants@drishti.gov.in</b>.
           </p>
         </section>
       </div>

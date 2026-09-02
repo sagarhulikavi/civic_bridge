@@ -17,7 +17,7 @@ export const PrivacyPolicy = () => {
         <section className="space-y-2">
           <h2 className="text-sm font-bold text-dark-900">1. Information We Collect</h2>
           <p>
-            Sahyog collects observations submitted by citizens solely for the purpose of identifying and resolving public societal problems. This includes photographic evidence (mandatory), audio recordings, text descriptions, and geolocation coordinates.
+            DRISHTI collects observations submitted by citizens solely for the purpose of identifying and resolving public societal problems. This includes photographic evidence (mandatory), audio recordings, text descriptions, and geolocation coordinates.
           </p>
         </section>
 
@@ -45,7 +45,7 @@ export const PrivacyPolicy = () => {
         <section className="space-y-2">
           <h2 className="text-sm font-bold text-dark-900">5. Contact Data Protection Officer</h2>
           <p>
-            For inquiries regarding your data or to request record removal, contact: <b>privacy@sahyog.gov.in</b>.
+            For inquiries regarding your data or to request record removal, contact: <b>privacy@drishti.gov.in</b>.
           </p>
         </section>
       </div>

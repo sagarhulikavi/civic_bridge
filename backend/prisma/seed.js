@@ -201,7 +201,7 @@ async function main() {
     {
       displayId: 'USR-000001',
       name: 'Admin Officer',
-      email: 'admin@sahyog.gov.in',
+      email: 'admin@drishti.gov.in',
       passwordHash,
       role: 'ADMIN',
       preferredLanguage: 'en',
@@ -210,7 +210,7 @@ async function main() {
     {
       displayId: 'USR-000002',
       name: 'Ramesh Kumar (Citizen)',
-      email: 'citizen@sahyog.in',
+      email: 'citizen@drishti.in',
       phone: '9876543210',
       passwordHash,
       role: 'CITIZEN',
@@ -254,7 +254,7 @@ async function main() {
   const problemsData = [
     {
       displayId: 'PRB-000001',
-      reporterId: userMap['citizen@sahyog.in'].id,
+      reporterId: userMap['citizen@drishti.in'].id,
       categoryId: categoryMap['Road Infrastructure'].id,
       title: 'Severe Asphalt Potholes & Broken Culvert near BIT Mesra Gate 2',
       description: 'गाँव के स्कूल लगे डहर बहुत टूट गेल हौ, गाड़ी आवे जाए में भारी दिक्कत हौ। Rainy water collects creating dangerous craters.',
@@ -279,7 +279,7 @@ async function main() {
     },
     {
       displayId: 'PRB-000002',
-      reporterId: userMap['citizen@sahyog.in'].id,
+      reporterId: userMap['citizen@drishti.in'].id,
       categoryId: categoryMap['Water & Sanitation'].id,
       title: 'High-Pressure Drinking Water Pipeline Fracture on Main Road',
       description: 'Major underground pipeline cracked, flooding road surface and cutting off clean drinking water supply to 400 households.',
@@ -304,7 +304,7 @@ async function main() {
     },
     {
       displayId: 'PRB-000003',
-      reporterId: userMap['citizen@sahyog.in'].id,
+      reporterId: userMap['citizen@drishti.in'].id,
       categoryId: categoryMap['Electricity & Power'].id,
       title: 'Exposed High-Voltage Transformer with Sparking Low-Hanging Cables',
       description: 'Transformer enclosure damaged after storm; exposed 11kV live wires dangling dangerously close to pedestrian pathway.',
@@ -329,7 +329,7 @@ async function main() {
     },
     {
       displayId: 'PRB-000004',
-      reporterId: userMap['citizen@sahyog.in'].id,
+      reporterId: userMap['citizen@drishti.in'].id,
       categoryId: categoryMap['Waste Management'].id,
       title: 'Illegal Plastic Waste Dumping and Stormwater Drain Choke',
       description: 'Community garbage accumulating for 3 weeks blocking primary storm drain, creating foul odor and mosquito breeding ground.',
@@ -354,7 +354,7 @@ async function main() {
     },
     {
       displayId: 'PRB-000005',
-      reporterId: userMap['citizen@sahyog.in'].id,
+      reporterId: userMap['citizen@drishti.in'].id,
       categoryId: categoryMap['Agriculture & Irrigation'].id,
       title: 'Irrigation Canal Embankment Breach Flooding Paddy Fields',
       description: 'Canal retaining wall collapsed during heavy rain; water flooding 25 acres of standing paddy crops.',
@@ -379,7 +379,7 @@ async function main() {
     },
     {
       displayId: 'PRB-000006',
-      reporterId: userMap['citizen@sahyog.in'].id,
+      reporterId: userMap['citizen@drishti.in'].id,
       categoryId: categoryMap['Healthcare & Public Safety'].id,
       title: 'Uncovered 8-Foot Deep Manhole Adjacent to Community Health Center',
       description: 'Concrete slab stolen/broken leaving open deep cavity on hospital entrance ramp. High risk of serious injury at night.',

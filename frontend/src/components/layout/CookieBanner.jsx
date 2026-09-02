@@ -33,7 +33,7 @@ export const CookieBanner = () => {
         <div className="flex-1 text-xs text-dark-700">
           <p className="font-semibold text-dark-900 mb-1">Cookie & Privacy Notice</p>
           <p className="leading-relaxed">
-            Sahyog uses essential cookies and local storage to remember your language preferences and provide secure session authentication.
+            DRISHTI uses essential cookies and local storage to remember your language preferences and provide secure session authentication.
           </p>
           <div className="mt-3 flex items-center space-x-2">
             <button
